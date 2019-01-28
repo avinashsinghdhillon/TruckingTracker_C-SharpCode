@@ -1,0 +1,369 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace TruckingTracker
+{
+    public partial class frmMain : Form
+    {
+        public frmMain()
+        {
+            InitializeComponent();
+        }
+
+        #region Loads Tab Declarations
+
+        //Declare all the adapters related to the Loads Tab
+        private dsLoadInfoTableAdapters.LoadInfoTableAdapter adpLoadInfo;
+        private dsDropsTableAdapters.DropsTableAdapter adpDrops;
+        private dsDropDetailsTableAdapters.DropDetailsTableAdapter adpDropsDetail;
+        private dsPicksTableAdapters.PicksTableAdapter adpPicks;
+        private dsPickDetailsTableAdapters.PickDetailsTableAdapter adpPickDetails;
+        private dsShippersAndReceiversTableAdapters.ShippersAndReceiversTableAdapter adpShippersReceivers;
+
+        //Declare all the datasets/tables for the Loads Tab
+        private dsLoadInfo.LoadInfoDataTable loadInfoTab;
+        private dsDrops.DropsDataTable dropsTab;
+        private dsDropDetails.DropDetailsDataTable dropDetailsTab;
+        private dsPicks.PicksDataTable picksTab;
+        private dsPickDetails.PickDetailsDataTable pickDetailsTab;
+        private dsShippersAndReceivers.ShippersAndReceiversDataTable shippersReceiversTab;
+
+        //bools that keep track of changes to the tab. For User check to save changes on exit
+        private bool bAddNewPick = false;
+        private bool bAddNewDrop = false;
+        private bool bAddNewLoad = false;
+
+        #endregion
+
+        #region Expenses Tab Declarations
+        //declate all the adapters related to the Expenses Tab
+        private dsExpensesTableAdapters.ExpensesTableAdapter adpExpenses;
+        private dsExpenseTypesTableAdapters.ExpenseTypesTableAdapter adpExpenseTypes;
+        private dsExpenseDetailsTableAdapters.ExpenseDetailsTableAdapter adpExpenseDetails;
+
+
+        //declare all the datasets and tables for the Expenses tabs
+        private dsExpenses.ExpensesDataTable ExpensesTab;
+        private dsExpenseTypes.ExpenseTypesDataTable ExpenseTypesTab;
+        private dsExpenseDetails.ExpenseDetailsDataTable ExpenseDetailsTab;
+        private dsExpenseDetails.ExpenseDetailsDataTable ExpenseDetailsForDateTab;
+
+
+
+        #endregion
+
+        private void frmMain_Load(object sender, EventArgs e)
+        {
+            //hide the tab pages not being used ATM
+
+            tabControlMain.TabPages.Remove(tabDashboard);
+            tabControlMain.TabPages.Remove(tabTrips);
+            tabControlMain.TabPages.Remove(tabInvoicing);
+            tabControlMain.TabPages.Remove(tabLogs);
+            tabControlMain.TabPages.Remove(tabReports);
+            tabControlMain.TabPages.Remove(tabManage);
+            tabControlMain.TabPages.Remove(tabLoads);
+
+            #region Loads Tab Data fill
+            //initialize the lists' tables for the Loads Tab
+            loadInfoTab = new dsLoadInfo.LoadInfoDataTable();
+            shippersReceiversTab = new TruckingTracker.dsShippersAndReceivers.ShippersAndReceiversDataTable();
+            picksTab = new dsPicks.PicksDataTable();
+            pickDetailsTab = new dsPickDetails.PickDetailsDataTable();
+            dropsTab = new dsDrops.DropsDataTable();
+            dropDetailsTab = new dsDropDetails.DropDetailsDataTable();
+
+            //load up the Loads list for the load search
+            adpLoadInfo = new dsLoadInfoTableAdapters.LoadInfoTableAdapter();          
+            adpLoadInfo.Fill(loadInfoTab);
+            this.dgvLoadList.DataSource = loadInfo;
+            
+            //load up the Shippers and Receivers Search List
+            adpShippersReceivers = new dsShippersAndReceiversTableAdapters.ShippersAndReceiversTableAdapter();
+            adpShippersReceivers.Fill(shippersReceiversTab);
+            this.dgvShipperSearch.DataSource = shippersReceiversTab;
+            
+
+            //add the data sources to their respective data grids
+            dgvLoadList.DataSource = loadInfoTab;
+            dgvShipperSearch.DataSource = shippersReceiversTab;
+            dgvShipperList.DataSource = pickDetailsTab;
+
+            #endregion
+
+            #region Expenses Tab Data Fill
+
+            //initialize the tables for the Expenses Tabs
+            ExpensesTab = new dsExpenses.ExpensesDataTable();
+            ExpenseTypesTab = new dsExpenseTypes.ExpenseTypesDataTable();
+            ExpenseDetailsTab = new dsExpenseDetails.ExpenseDetailsDataTable(); //this table is not being populated yet. It will be later by trip or load or date radio buttons
+            ExpenseDetailsForDateTab = new dsExpenseDetails.ExpenseDetailsDataTable();
+
+            //initialize the adapters
+            adpExpenses = new dsExpensesTableAdapters.ExpensesTableAdapter();
+            adpExpenseTypes = new dsExpenseTypesTableAdapters.ExpenseTypesTableAdapter();
+            adpExpenseDetails = new dsExpenseDetailsTableAdapters.ExpenseDetailsTableAdapter();
+
+            //fill the data and assign to dgv
+            adpExpenseTypes.Fill(ExpenseTypesTab);
+            dgvExpenseTypes.DataSource = ExpenseTypesTab;
+
+            //this data table gets filled later as needed
+            ExpenseDetailsForDateTab = new dsExpenseDetails.ExpenseDetailsDataTable();
+
+            #endregion
+        }
+
+        private void butAddPick_Click(object sender, EventArgs e)
+        {
+            if (this.dgvShipperSearch.SelectedRows.Count > 0)
+            {
+                bool addPick = true;
+                //check if the shipper already exists in the shipper list
+                if (this.pickDetailsTab.Rows.Count > 0)
+                {
+                    foreach (dsPickDetails.PickDetailsRow r in pickDetailsTab.Rows)
+                    {
+                        if (!r.IsBusinessNameNull())//if BusinessName is not null...to avoid any exceptions
+                        {
+                            if (r.BusinessName.ToLower() == dgvShipperSearch.SelectedRows[0].Cells["BusinessName"].Value.ToString().ToLower())//compare names from both lists
+                            {
+                                addPick = false; //if name already exists do not add it again
+                            }
+                        }
+                    }
+                }
+                else
+                    addPick = true; //may be redundant...but here for now
+
+                if (addPick)
+                {
+                    //add the shipper info to the shipper list
+                    dsPickDetails.PickDetailsRow r = pickDetailsTab.NewPickDetailsRow();
+                    r.BusinessName = dgvShipperSearch.SelectedRows[0].Cells[0].Value.ToString();
+                    pickDetailsTab.AddPickDetailsRow(r);
+
+                    bAddNewDrop = true;
+
+                    //refresh the shipper/picks list
+                    dgvShipperList.Refresh();
+
+                    //color code the cells to indicate to user that input is expected
+
+                    foreach (DataGridViewRow dgvr in dgvShipperList.Rows)
+                    {
+                        if (!dgvr.IsNewRow)//do not color new rows
+                        {
+                            foreach (DataGridViewCell c in dgvr.Cells)
+                            {
+                                if (c.Value == null)
+                                {
+                                    c.Style.BackColor = Color.LightSalmon;
+                                }
+                                else if (c.Value.ToString() == "")
+                                {
+                                    c.Style.BackColor = Color.LightSalmon;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                //if no rows are selected, tell user to select a row and try again
+                MessageBox.Show("Please select the entire row and try again", "No row selected", MessageBoxButtons.OK);
+            }
+        }
+
+        private void butSave_Click(object sender, EventArgs e)
+        {
+            bool bNumPicksOK = false;
+            bool bNumDropsOK = false;
+            //check if the number of picks and drops selected is the same as the added rows
+            if (dgvShipperList.Rows.Count == numUDPickCnt.Value)
+                bNumPicksOK = true;
+            if (dgvReceiverList.Rows.Count == numUDDropCnt.Value)
+                bNumDropsOK = true;
+
+
+            //save the Load details to the respective tables: LoadInfo, Picks and Drops....and if needed to tables: Charges and Invoices
+
+
+
+            //the last thing to do is to reset the change variables
+            bAddNewDrop = false;
+            bAddNewLoad = false;
+            bAddNewPick = false;
+        }
+
+        private void dgvExpenseDetails_CellLeave(object sender, DataGridViewCellEventArgs e)
+        {
+            //if cell is date cell, check date and pull expenses for that date in the bottom dgv
+            if (dgvExpenseDetails.CurrentCell.OwningColumn.DataPropertyName == "ExpenseDate" && dgvExpenseDetails.CurrentCell.EditedFormattedValue.ToString() != "")
+            {
+                //get expenses for this date
+                DateTime date;
+                if (DateTime.TryParse(dgvExpenseDetails.CurrentCell.EditedFormattedValue.ToString(), out date))
+                {
+                    adpExpenseDetails.FillByExpenseDate(ExpenseDetailsForDateTab, date.ToShortDateString());
+                    dgvExpenseDetailsByDate.DataSource = ExpenseDetailsForDateTab;
+                }
+            }
+            // These are checks for Expense Amounts
+            if (dgvExpenseDetails.CurrentCell.OwningColumn.DataPropertyName == "ExpenseAmount" && dgvExpenseDetails.CurrentCell.EditedFormattedValue.ToString() != "")
+            {
+                float amt = 0;
+                if(float.TryParse( dgvExpenseDetails.CurrentCell.EditedFormattedValue.ToString(), out amt))
+                {
+                    //check for all Expense Types Needed
+                    if (dgvExpenseDetails.CurrentRow.Cells["dgvExpenseDetails_ExpenseNameCol"].EditedFormattedValue.ToString().ToLower() == "toll" && amt > 50) //check for toll amt
+                    {
+                        dgvExpenseDetails.CurrentRow.Cells["dgvExpenseDetails_ExpenseAmountCol"].Style.BackColor = Color.LightSalmon;
+                    }
+
+                    //general check for all values
+                    if (amt > 1000)
+                    {
+                        dgvExpenseDetails.CurrentRow.Cells["dgvExpenseDetails_ExpenseAmountCol"].Style.BackColor = Color.LightSalmon; //draw attention to any amy above $1000
+                    }
+
+                }
+                else
+                {
+                    dgvExpenseDetails.CurrentRow.Cells["dgvExpenseDetails_ExpenseAmountCol"].Style.BackColor = Color.White;
+                }
+            }
+        }
+
+        private void butUpdateExpenseTypes_Click(object sender, EventArgs e)
+        {
+            //update any changes to the Expense Types Data
+            adpExpenseTypes.Update(ExpenseTypesTab);
+            adpExpenseTypes.Fill(ExpenseTypesTab);
+            dgvExpenseTypes.DataSource = ExpenseTypesTab;
+        }
+
+        private void dgvExpenseTypes_DefaultValuesNeeded(object sender, DataGridViewRowEventArgs e)
+        {
+            //add the default values here for the Expense Types row here
+            if (e.Row.Cells["dgvExpenseTypes_IdCol"].Value == null)
+            {
+                e.Row.Cells["dgvExpenseTypes_IdCol"].Value = Guid.NewGuid();          //Id
+                e.Row.Cells["dgvExpenseTypes_CreatedByCol"].Value = Environment.UserName;    //CreatedBy
+                e.Row.Cells["dgvExpenseTypes_UpdatedByCol"].Value = Environment.UserName;    //UpdatedBy
+                e.Row.Cells["dgvExpenseTypes_CreatedOnCol"].Value = DateTime.Now;            //CreatedOn
+                e.Row.Cells["dgvExpenseTypes_UpdatedOnCol"].Value = DateTime.Now;            //UpdatedOn
+                e.Row.Cells["dgvExpenseTypes_TagsCol"].Value = "--------------------";   //tags
+
+                dgvExpenseTypes.CurrentCell = dgvExpenseTypes.CurrentRow.Cells["dgvExpenseTypes_ExpenseNameCol"];
+                dgvExpenseTypes.BeginEdit(true);
+            }
+            
+        }
+
+        private void butAddExpense_Click(object sender, EventArgs e)
+        {
+            if (dgvExpenseTypes.SelectedRows.Count > 0)
+            {
+                //add a new row to the expenses table and assign the default values
+                dsExpenseDetails.ExpenseDetailsRow r = ExpenseDetailsTab.NewExpenseDetailsRow();
+                r.id = Guid.NewGuid();
+                r.ExpenseTypeId = Guid.Parse(dgvExpenseTypes.SelectedRows[0].Cells[0].Value.ToString());
+                r.ExpenseName = dgvExpenseTypes.SelectedRows[0].Cells[1].Value.ToString();
+                ExpenseDetailsTab.AddExpenseDetailsRow(r);
+
+                //refresh the dgv after the row add
+                dgvExpenseDetails.DataSource = ExpenseDetailsTab;
+
+                //prompt the user to enter the date next..this is sketchy code for now
+                dgvExpenseDetails.CurrentCell = dgvExpenseDetails.CurrentRow.Cells["dgvExpenseDetails_ExpenseDateCol"]; //need to find a way to not use the index number of the cell.
+                dgvExpenseDetails.BeginEdit(true);
+            }
+        }
+
+        private void butUpdateExpenses_Click(object sender, EventArgs e)
+        {
+            if (dgvExpenseDetails.Rows.Count >= 1)
+            {
+                //validate data
+
+
+                //create rows for the Expenses tab and update them.
+                foreach (dsExpenseDetails.ExpenseDetailsRow r in ExpenseDetailsTab.Rows)
+                {
+                    dsExpenses.ExpensesRow newExpRow = ExpensesTab.NewExpensesRow();
+                    newExpRow.Id = Guid.NewGuid();
+                    if (!r.IsTripIdNull())
+                    {
+                        newExpRow.TripId = r.TripId;
+                    }
+                    if (!r.IsUnitIdNull())
+                    {
+                        newExpRow.UnitId = r.UnitId;
+                    }
+                    if (!r.IsLoadIdNull())
+                    {
+                        newExpRow.LoadId = r.UnitId;
+                    }
+                    newExpRow.ExpenseDate = r.ExpenseDate;
+                    if (!r.IsExpenseTimeNull())
+                    {
+                        newExpRow.ExpenseTime = r.ExpenseTime;
+                    }
+                    newExpRow.ExpenseTypeId = r.ExpenseTypeId;
+                    newExpRow.VendorName = r.VendorName;
+                    if (!r.IsExpenseLocationNull())
+                    {
+                        newExpRow.ExpenseLocation = r.ExpenseLocation;
+                    }
+                    newExpRow.ExpenseAmount = r.ExpenseAmount;
+                    if (!r.IsReferenceNumNull())
+                    {
+                        newExpRow.ReferenceNum = r.ReferenceNum;
+                    }
+                    if (!r.IspaymentByNull())
+                    {
+                        newExpRow.PaymentBy = r.paymentBy;
+                    }
+                    if (!r.IsCommentsNull())
+                    {
+                        newExpRow.Comments = r.Comments;
+                    }
+                    newExpRow.CreatedBy = Environment.UserName;     //CreatedBy
+                    newExpRow.UpdatedBy = Environment.UserName;     //UpdatedBy
+                    newExpRow.CreatedOn = DateTime.Now;             //CreatedOn
+                    newExpRow.UpdatedOn = DateTime.Now;             //UpdatedOn
+                    newExpRow.Tags = "--------------------";        //tags
+
+                    ExpensesTab.AddExpensesRow(newExpRow);
+                }
+
+                //update the database with the new expense data
+                adpExpenses.Update(ExpensesTab);
+                ExpenseDetailsTab.Clear();
+                ExpenseDetailsForDateTab.Clear();
+                dgvExpenseDetails.DataSource = ExpenseDetailsTab;
+                dgvExpenseDetailsByDate.DataSource = ExpenseDetailsForDateTab;
+            }
+
+        }
+
+        private void butDeleteRow_Click(object sender, EventArgs e)
+        {
+            DataGridViewRow r = dgvExpenseDetails.CurrentRow;
+            dgvExpenseDetails.Rows.Remove(r);
+        }
+
+        private void butAddReminder_Click(object sender, EventArgs e)
+        {
+            tlpAddReminder.Enabled = true;
+        }
+    }
+}
